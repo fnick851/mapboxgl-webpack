@@ -1,118 +1,152 @@
 import "./mapbox-gl.css"
-import mapboxgl from 'mapbox-gl'
+import mapboxgl from "mapbox-gl"
 
+mapboxgl.accessToken =
+    "pk.eyJ1IjoibWFsLXdvb2QiLCJhIjoiY2oyZ2t2em50MDAyMzJ3cnltMDFhb2NzdiJ9.X-D4Wvo5E5QxeP7K_I3O8w"
 
-mapboxgl.accessToken = 'pk.eyJ1IjoibWFsLXdvb2QiLCJhIjoiY2oyZ2t2em50MDAyMzJ3cnltMDFhb2NzdiJ9.X-D4Wvo5E5QxeP7K_I3O8w';
 var map = new mapboxgl.Map({
-    container: 'map',
-    style: 'mapbox://styles/mapbox/dark-v10',
-    center: [-79.999732, 40.4374],
-    zoom: 11
-});
-map.on('load', function () {
+    container: "map",
+    zoom: 3,
+    center: [7.5, 58],
+    style: "mapbox://styles/mapbox/light-v10"
+})
 
-    map.addSource('trees', {
-        "type": "geojson",
-        "data": "./trees.geojson"
-    });
+var highlightLayer = {
+    id: "highlight",
+    type: "custom",
+    source: "esri",
 
-    map.addLayer({
-        "id": "trees-heat",
-        "type": "heatmap",
-        "source": "trees",
-        "maxzoom": 15,
-        "paint": {
-            // increase weight as diameter breast height increases
-            "heatmap-weight": {
-                "property": "dbh",
-                "type": "exponential",
-                "stops": [
-                    [1, 0],
-                    [62, 1]
-                ]
-            },
-            // increase intensity as zoom level increases
-            "heatmap-intensity": {
-                "stops": [
-                    [11, 1],
-                    [15, 3]
-                ]
-            },
-            // use sequential color palette to use exponentially as the weight increases
-            "heatmap-color": [
-                "interpolate",
-                ["linear"],
-                ["heatmap-density"],
-                0, "rgba(236,222,239,0)",
-                0.2, "rgb(208,209,230)",
-                0.4, "rgb(166,189,219)",
-                0.6, "rgb(103,169,207)",
-                0.8, "rgb(28,144,153)"
-            ],
-            // increase radius as zoom increases
-            "heatmap-radius": {
-                "stops": [
-                    [11, 15],
-                    [15, 20]
-                ]
-            },
-            // decrease opacity to transition into the circle layer
-            "heatmap-opacity": {
-                "default": 1,
-                "stops": [
-                    [14, 1],
-                    [15, 0]
-                ]
-            },
-        }
-    }, 'waterway-label');
-
-    map.addLayer({
-        "id": "trees-point",
-        "type": "circle",
-        "source": "trees",
-        "minzoom": 14,
-        "paint": {
-            // increase the radius of the circle as the zoom level and dbh value increases
-            "circle-radius": {
-                "property": "dbh",
-                "type": "exponential",
-                "stops": [
-                    [{ zoom: 15, value: 1 }, 5],
-                    [{ zoom: 15, value: 62 }, 10],
-                    [{ zoom: 22, value: 1 }, 20],
-                    [{ zoom: 22, value: 62 }, 50],
-                ]
-            },
-            "circle-color": {
-                "property": "dbh",
-                "type": "exponential",
-                "stops": [
-                    [0, "rgba(236,222,239,0)"],
-                    [10, "rgb(236,222,239)"],
-                    [20, "rgb(208,209,230)"],
-                    [30, "rgb(166,189,219)"],
-                    [40, "rgb(103,169,207)"],
-                    [50, "rgb(28,144,153)"],
-                    [60, "rgb(1,108,89)"]
-                ]
-            },
-            "circle-stroke-color": "white",
-            "circle-stroke-width": 1,
-            "circle-opacity": {
-                "stops": [
-                    [14, 0],
-                    [15, 1]
-                ]
+    onAdd: function(map, gl) {
+        var vertexSource = `
+            uniform mat4 u_matrix;
+            attribute vec2 a_pos;
+            void main() {
+                gl_Position = u_matrix * vec4(a_pos, 0.0, 1.0);
             }
-        }
-    }, 'waterway-label');
-});
+        `
+        var fragmentSource = `
+            precision mediump float;
+ 
+            uniform vec4 u_color;
+            
+            void main() {
+                gl_FragColor = u_color;
+            }
+        `
+        var vertexShader = gl.createShader(gl.VERTEX_SHADER)
+        gl.shaderSource(vertexShader, vertexSource)
+        gl.compileShader(vertexShader)
+        var fragmentShader = gl.createShader(gl.FRAGMENT_SHADER)
+        gl.shaderSource(fragmentShader, fragmentSource)
+        gl.compileShader(fragmentShader)
 
-//click on tree to view dbh in a popup
-map.on('click', 'trees-point', function (e) {
-    new mapboxgl.Popup()
-        .setLngLat(e.features[0].geometry.coordinates)
-        .setHTML('<b>DBH:</b> ' + e.features[0].properties.dbh)
-        .addTo(map);
-});
+        this.cgProgram = gl.createProgram()
+        gl.attachShader(this.cgProgram, vertexShader)
+        gl.attachShader(this.cgProgram, fragmentShader)
+        gl.linkProgram(this.cgProgram)
+
+        this.vertexPosition = gl.getAttribLocation(this.cgProgram, "a_pos")
+        this.colorUniformLocation = gl.getUniformLocation(
+            this.cgProgram,
+            "u_color"
+        )
+
+        var helsinki = mapboxgl.MercatorCoordinate.fromLngLat({
+            lng: 25,
+            lat: 60
+        })
+        console.log(helsinki)
+        var berlin = mapboxgl.MercatorCoordinate.fromLngLat({
+            lng: 14,
+            lat: 52
+        })
+        console.log(berlin)
+        var kyiv = mapboxgl.MercatorCoordinate.fromLngLat({
+            lng: 31,
+            lat: 40
+        })
+        console.log(kyiv)
+        this.buffer = gl.createBuffer()
+
+        // var source = map.style.sourceCaches["esri"]
+        // console.log(source)
+        // var coords = source.getVisibleCoordinates().reverse()
+        // console.log(coords)
+        // for (var coord of coords) {
+        //     var tile = source.getTile(coord)
+        //     var xyz = tile.tileID.canonical
+        //     console.log(xyz)
+        // }
+    },
+
+    render: function(gl, matrix) {
+        gl.useProgram(this.cgProgram)
+        gl.uniformMatrix4fv(
+            gl.getUniformLocation(this.cgProgram, "u_matrix"),
+            false,
+            matrix
+        )
+        gl.uniform4f(
+            this.colorUniformLocation,
+            Math.random(),
+            Math.random(),
+            Math.random(),
+            1
+        )
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer)
+        gl.bufferData(
+            gl.ARRAY_BUFFER,
+            new Float32Array([
+                Math.random(),
+                Math.random(),
+                Math.random(),
+                Math.random(),
+                Math.random(),
+                Math.random()
+            ]),
+            // new Float32Array([
+            //     helsinki.x,
+            //     helsinki.y,
+            //     berlin.x,
+            //     berlin.y,
+            //     kyiv.x,
+            //     kyiv.y
+            // ]),
+            gl.STATIC_DRAW
+        )
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer)
+        gl.enableVertexAttribArray(this.vertexPosition)
+        gl.vertexAttribPointer(this.vertexPosition, 2, gl.FLOAT, false, 0, 0)
+        gl.enable(gl.BLEND)
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+        gl.drawArrays(gl.TRIANGLES, 0, 3)
+    }
+}
+
+map.on("load", function() {
+    map.addSource("esri", {
+        type: "raster",
+        tiles: [
+            "http://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+        ],
+        tileSize: 256
+    })
+    map.addLayer({
+        id: "esri",
+        type: "raster",
+        paint: {
+            "raster-opacity": 0.5
+        },
+        source: "esri"
+    })
+    var source = map.style.sourceCaches["esri"]
+    console.log(source)
+    var coords = source.getVisibleCoordinates().reverse()
+    console.log(coords)
+    for (var coord of coords) {
+        var tile = source.getTile(coord)
+        var xyz = tile.tileID.canonical
+        console.log(xyz)
+    }
+    // map.addLayer(highlightLayer)
+})
