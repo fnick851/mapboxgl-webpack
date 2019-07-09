@@ -8,7 +8,7 @@ var map = new mapboxgl.Map({
     container: "map",
     zoom: 3,
     center: [7.5, 58],
-    style: "mapbox://styles/mapbox/light-v10"
+    style: "mapbox://styles/mapbox/streets-v11"
 })
 
 var highlightLayer = {
@@ -46,80 +46,127 @@ var highlightLayer = {
         gl.linkProgram(this.cgProgram)
 
         this.vertexPosition = gl.getAttribLocation(this.cgProgram, "a_pos")
-        this.colorUniformLocation = gl.getUniformLocation(
-            this.cgProgram,
-            "u_color"
-        )
 
         var helsinki = mapboxgl.MercatorCoordinate.fromLngLat({
             lng: 25,
             lat: 60
         })
-        console.log(helsinki)
+        // console.log(helsinki)
         var berlin = mapboxgl.MercatorCoordinate.fromLngLat({
             lng: 14,
             lat: 52
         })
-        console.log(berlin)
+        // console.log(berlin)
         var kyiv = mapboxgl.MercatorCoordinate.fromLngLat({
             lng: 31,
             lat: 40
         })
-        console.log(kyiv)
+        // console.log(kyiv)
         this.buffer = gl.createBuffer()
-
-        // var source = map.style.sourceCaches["esri"]
-        // console.log(source)
-        // var coords = source.getVisibleCoordinates().reverse()
-        // console.log(coords)
-        // for (var coord of coords) {
-        //     var tile = source.getTile(coord)
-        //     var xyz = tile.tileID.canonical
-        //     console.log(xyz)
-        // }
     },
 
     render: function(gl, matrix) {
         gl.useProgram(this.cgProgram)
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer)
+
         gl.uniformMatrix4fv(
             gl.getUniformLocation(this.cgProgram, "u_matrix"),
             false,
             matrix
         )
-        gl.uniform4f(
-            this.colorUniformLocation,
-            Math.random(),
-            Math.random(),
-            Math.random(),
-            1
-        )
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer)
-        gl.bufferData(
-            gl.ARRAY_BUFFER,
-            new Float32Array([
-                Math.random(),
-                Math.random(),
-                Math.random(),
-                Math.random(),
-                Math.random(),
-                Math.random()
-            ]),
-            // new Float32Array([
-            //     helsinki.x,
-            //     helsinki.y,
-            //     berlin.x,
-            //     berlin.y,
-            //     kyiv.x,
-            //     kyiv.y
-            // ]),
-            gl.STATIC_DRAW
-        )
+
         gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer)
         gl.enableVertexAttribArray(this.vertexPosition)
         gl.vertexAttribPointer(this.vertexPosition, 2, gl.FLOAT, false, 0, 0)
         gl.enable(gl.BLEND)
         gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
-        gl.drawArrays(gl.TRIANGLES, 0, 3)
+
+        var source = map.style.sourceCaches["esri"]
+        // console.log(source)
+        var coords = source.getVisibleCoordinates().reverse()
+        // console.log(coords)
+        var recX = 0
+        var recY = 0
+        for (var coord of coords) {
+            var tile = source.getTile(coord)
+            var xyz = tile.tileID.canonical
+            console.log(xyz)
+
+            setRectangle(gl, recX, recY, 0.2, 0.2)
+            if (recX <= 1) {
+                recX += 0.2
+            } else {
+                recX = 0
+                if (recY <= 1) {
+                    recY += 0.2
+                } else {
+                    recY = 0
+                }
+            }
+
+            gl.uniform4f(
+                gl.getUniformLocation(this.cgProgram, "u_color"),
+                Math.random(),
+                Math.random(),
+                Math.random(),
+                1
+            )
+
+            gl.drawArrays(gl.TRIANGLES, 0, 6)
+        }
+
+        // Fills the buffer with the values that define a rectangle.
+        function setRectangle(gl, x, y, width, height) {
+            var x1 = x
+            var x2 = x + width
+            var y1 = y
+            var y2 = y + height
+
+            // NOTE: gl.bufferData(gl.ARRAY_BUFFER, ...) will affect
+            // whatever buffer is bound to the `ARRAY_BUFFER` bind point
+            // but so far we only have one buffer. If we had more than one
+            // buffer we'd want to bind that buffer to `ARRAY_BUFFER` first.
+
+            gl.bufferData(
+                gl.ARRAY_BUFFER,
+                new Float32Array([
+                    x1,
+                    y1,
+                    x2,
+                    y1,
+                    x1,
+                    y2,
+                    x1,
+                    y2,
+                    x2,
+                    y1,
+                    x2,
+                    y2
+                ]),
+                gl.STATIC_DRAW
+            )
+        }
+
+        // gl.bufferData(
+        //     gl.ARRAY_BUFFER,
+        //     new Float32Array([
+        //         Math.random(),
+        //         Math.random(),
+        //         Math.random(),
+        //         Math.random(),
+        //         Math.random(),
+        //         Math.random()
+        //     ]),
+        //     // new Float32Array([
+        //     //     helsinki.x,
+        //     //     helsinki.y,
+        //     //     berlin.x,
+        //     //     berlin.y,
+        //     //     kyiv.x,
+        //     //     kyiv.y
+        //     // ]),
+        //     gl.STATIC_DRAW
+        // )
     }
 }
 
@@ -139,14 +186,5 @@ map.on("load", function() {
         },
         source: "esri"
     })
-    var source = map.style.sourceCaches["esri"]
-    console.log(source)
-    var coords = source.getVisibleCoordinates().reverse()
-    console.log(coords)
-    for (var coord of coords) {
-        var tile = source.getTile(coord)
-        var xyz = tile.tileID.canonical
-        console.log(xyz)
-    }
-    // map.addLayer(highlightLayer)
+    map.addLayer(highlightLayer)
 })
