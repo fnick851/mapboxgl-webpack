@@ -87,18 +87,15 @@ var highlightLayer = {
         // console.log(coords)
         var recX = 0
         var recY = 0
-        for (var coord of coords) {
-            var tile = source.getTile(coord)
-            var xyz = tile.tileID.canonical
-            console.log(xyz)
-
-            setRectangle(gl, recX, recY, 0.2, 0.2)
-            if (recX <= 1) {
-                recX += 0.2
+        for (var i = 0; i < 220; i++) {
+            setRectangle(gl, recX, recY, 0.1, 0.1)
+            if (recX <= 2) {
+                recX += 0.1
+                console.log(recX)
             } else {
                 recX = 0
-                if (recY <= 1) {
-                    recY += 0.2
+                if (recY <= 4) {
+                    recY += 0.1
                 } else {
                     recY = 0
                 }
@@ -114,6 +111,33 @@ var highlightLayer = {
 
             gl.drawArrays(gl.TRIANGLES, 0, 6)
         }
+        // for (var coord of coords) {
+        //     var tile = source.getTile(coord)
+        //     var xyz = tile.tileID.canonical
+        //     console.log(xyz)
+
+        //     setRectangle(gl, recX, recY, 0.2, 0.2)
+        //     if (recX <= 1) {
+        //         recX += 0.2
+        //     } else {
+        //         recX = 0
+        //         if (recY <= 1) {
+        //             recY += 0.2
+        //         } else {
+        //             recY = 0
+        //         }
+        //     }
+
+        //     gl.uniform4f(
+        //         gl.getUniformLocation(this.cgProgram, "u_color"),
+        //         Math.random(),
+        //         Math.random(),
+        //         Math.random(),
+        //         1
+        //     )
+
+        //     gl.drawArrays(gl.TRIANGLES, 0, 6)
+        // }
 
         // Fills the buffer with the values that define a rectangle.
         function setRectangle(gl, x, y, width, height) {
